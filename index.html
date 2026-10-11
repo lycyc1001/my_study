@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>高中生刷題與錯題分析系統</title>
+    <style>
+        /* CSS 樣式跟原本差不多，新增了匯入區塊的樣式 */
+        :root {
+            --primary: #4F46E5;
+            --primary-hover: #4338CA;
+            --bg-color: #F3F4F6;
+            --card-bg: #FFFFFF;
+            --text-main: #1F2937;
+            --text-muted: #6B7280;
+            --danger: #EF4444;
+            --success: #10B981;
+        }
+
+        * { box-sizing: border-box; font-family: 'Segoe UI', sans-serif; }
+        body { margin: 0; background-color: var(--bg-color); color: var(--text-main); }
+        
+        nav {
+            background-color: var(--card-bg);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            display: flex; justify-content: center; padding: 1rem;
+            position: sticky; top: 0; z-index: 100;
+        }
+
+        .tab-btn {
+            background: none; border: none; font-size: 1.1rem;
+            padding: 0.5rem 1rem; margin: 0 0.25rem; cursor: pointer;
+            border-bottom: 3px solid transparent; color: var(--text-muted);
+            transition: all 0.2s;
+        }
+        .tab-btn:hover { color: var(--primary); }
+        .tab-btn.active { color: var(--primary); border-bottom-color: var(--primary); font-weight: bold; }
+
+        main { max-width: 800px; margin: 2rem auto; padding: 0 1rem; }
+        .section { display: none; animation: fadeIn 0.3s; }
+        .section.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        .card { background-color: var(--card-bg); border-radius: 12px; padding: 2rem; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 1.5rem; }
+        h2 { margin-top: 0; color: var(--primary); }
+
+        .btn {
+            display: block; width: 100%; padding: 1rem; margin: 0.5rem 0;
+            border: 2px solid #E5E7EB; border-radius: 8px; background-color: white;
+            font-size: 1.1rem; cursor: pointer; transition: all 0.2s; text-align: left;
+        }
+        .btn:hover { border-color: var(--primary); background-color: #EEF2FF; }
+        .btn-primary { background-color: var(--primary); color: white; text-align: center; border: none; }
+        .btn-primary:hover { background-color: var(--primary-hover); }
+        .btn-danger { background-color: white; color: var(--danger); border: 1px solid var(--danger); text-align: center; width: auto; display: inline-block; padding: 0.5rem 1rem; }
+        .btn-danger:hover { background-color: #FEF2F2; }
+
+        .badge { display: inline-block; padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.875rem; font-weight: bold; margin-bottom: 1rem; margin-right: 0.5rem; }
+        .badge.subject { background-color: #DBEAFE; color: #1E40AF; }
+        .badge.reason { background-color: #FEE2E2; color: #991B1B; }
+
+        .wrong-item { border: 1px solid #E5E7EB; border-radius: 8px; padding: 1.5rem; margin-bottom: 1rem; }
+        select { width: 100%; padding: 0.75rem; margin: 1rem 0; border-radius: 8px; border: 1px solid #ccc; font-size: 1rem; }
+
+        .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0,0,0,0.5); display: none; justify-content: center; align-items: center; z-index: 1000; }
+        .modal { background-color: white; padding: 2rem; border-radius: 12px; width: 90%; max-width: 500px; }
+
+        /* 翻牌與文字庫專用 */
+        .flashcard-container { perspective: 1000px; width: 100%; height: 300px; margin-bottom: 1rem; }
+        .flashcard { width: 100%; height: 100%; position: relative; transition: transform 0.6s; transform-style: preserve-3d; cursor: pointer; }
+        .flashcard.is-flipped { transform: rotateY(180deg); }
+        .flashcard-face { position: absolute; width: 100%; height: 100%; backface-visibility: hidden; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 2rem; border-radius: 12px; background-color: white; box-shadow: 0 4px 6px rgba(0,0,0,0.1); text-align: center; }
+        .flashcard-back { transform: rotateY(180deg); background-color: #EEF2FF; }
+        .controls { display: flex; justify-content: space-between; }
+        
+        /* 提示詞區塊與輸入框 */
+        .prompt-box { background-color: #1F2937; color: #D1D5DB; padding: 1rem; border-radius: 8px; font-family: monospace; font-size: 0.9rem; margin-bottom: 1rem; white-space: pre-wrap; word-break: break-all;}
+        textarea { width: 100%; height: 150px; padding: 1rem; border-radius: 8px; border: 1px solid #ccc; font-family: monospace; resize: vertical; margin-bottom: 1rem;}
+    </style>
+</head>
+<body>
+
+    <!-- 導覽列：新增了 AI 擴充題庫 -->
+    <nav>
+        <button class="tab-btn active" onclick="switchTab('practice')">開始刷題</button>
+        <button class="tab-btn" onclick="switchTab('dashboard')">我的錯題本</button>
+        <button class="tab-btn" onclick="switchTab('review')">翻牌複習</button>
+        <button class="tab-btn" onclick="switchTab('ai-import')">🚀 AI 擴充題庫</button>
+    </nav>
+
+    <main>
+        <!-- 分頁 1：開始刷題 -->
+        <section id="practice" class="section active card">
+            <h2>刷題測驗模式</h2>
+            <p style="color: var(--text-muted);">目前題庫總題數：<span id="total-q-count">0</span> 題</p>
+            <div id="quiz-container">
+                <span id="q-subject" class="badge subject">科目</span>
+                <h3 id="q-text" style="font-size: 1.5rem; margin-bottom: 2rem;">題目載入中...</h3>
+                <div id="options-container"></div>
+            </div>
+            <button class="btn btn-primary" style="margin-top: 1.5rem;" onclick="loadRandomQuestion()">跳過，下一題</button>
+        </section>
+
+        <!-- 分頁 2：錯題總覽 -->
+        <section id="dashboard" class="section card">
+            <h2>我的錯題本</h2>
+            <p>累積錯題數：<span id="wrong-count">0</span> 題</p>
+            <select id="filter-subject" onchange="renderDashboard()">
+                <option value="all">所有科目</option>
+                <!-- 選項從 JS 動態生成 -->
+            </select>
+            <div id="wrong-list"></div>
+        </section>
+
+        <!-- 分頁 3：翻牌複習 -->
+        <section id="review" class="section card">
+            <h2>翻牌複習模式</h2>
+            <div id="flashcard-area" style="display: none;">
+                <div class="flashcard-container" onclick="flipCard()">
+                    <div id="flashcard" class="flashcard">
+                        <div class="flashcard-face flashcard-front">
+                            <span id="fc-subject" class="badge subject">科目</span>
+                            <h3 id="fc-question">題目載入中...</h3>
+                        </div>
+                        <div class="flashcard-face flashcard-back">
+                            <h3 style="color: var(--success);">正確答案</h3>
+                            <p id="fc-answer" style="font-size: 1.2rem; font-weight: bold;"></p>
+                            <span id="fc-reason" class="badge reason">錯誤原因</span>
+                            <p id="fc-explanation" style="margin-top: 1rem; color: var(--text-muted);"></p>
+                        </div>
+                    </div>
+                </div>
+                <div class="controls">
+                    <button class="btn" style="width: 48%;" onclick="prevCard()">上一題</button>
+                    <button class="btn btn-primary" style="width: 48%;" onclick="nextCard()">下一題</button>
+                </div>
+            </div>
+            <div id="no-flashcard" style="text-align: center; padding: 3rem;">
+                太棒了！目前錯題本是空的，繼續保持！
+            </div>
+        </section>
+
+        <!-- 分頁 4：AI 擴充題庫 (新功能) -->
+        <section id="ai-import" class="section card">
+            <h2>🚀 AI 協作擴充題庫</h2>
+            <p>請複製下方的「提示詞(Prompt)」，貼給 ChatGPT 或 Gemini，它會自動幫你出題。</p>
+            <div class="prompt-box">請幫我出 3 題高中程度的【生物】選擇題（你可以改成任意科目）。
+請嚴格依照以下 JSON 陣列格式回覆，不要加任何其他文字或 Markdown 標記：
+[
+  {
+    "subject": "生物",
+    "q": "題目敘述...",
+    "options": ["選項A", "選項B", "選項C", "選項D"],
+    "correctIndex": 0,
+    "exp": "解析說明..."
+  }
+]</div>
+            <p>接著，將 AI 回覆的 JSON 程式碼貼到下方框框中：</p>
+            <textarea id="ai-json-input" placeholder='在此貼上類似 [\n  {\n    "subject": "生物", ... \n  }\n] 的程式碼'></textarea>
+            <button class="btn btn-primary" onclick="importAiQuestions()">確認匯入題庫</button>
+        </section>
+    </main>
+
+    <!-- 錯誤分析彈出視窗 -->
+    <div id="reason-modal" class="modal-overlay">
+        <div class="modal">
+            <h2 style="color: var(--danger);">答錯了！</h2>
+            <p><strong>正確答案：</strong><span id="modal-correct-ans"></span></p>
+            <p><strong>解析：</strong><span id="modal-explanation"></span></p>
+            <hr style="border: 0; border-top: 1px solid #eee; margin: 1.5rem 0;">
+            <h3>為什麼會選錯？（必填）</h3>
+            <select id="reason-select">
+                <option value="粗心大意">粗心大意 (看錯題目、計算錯誤)</option>
+                <option value="觀念不懂">觀念不懂 (不熟悉核心概念)</option>
+                <option value="公式忘記">公式忘記/背錯單字</option>
+                <option value="單純猜錯">完全沒頭緒，單純猜錯</option>
+            </select>
+            <button class="btn btn-primary" onclick="saveToWrongDb()">加入錯題本並換下一題</button>
+        </div>
+    </div>
+
+    <script>
+        // 1. 系統變數與資料初始化
+        const defaultQuestionBank = [
+            { id: 1, subject: '數學', q: '若 log₂8 + log₃9 = x，求 x =？', options: ['4', '5', '6', '7'], correctIndex: 1, exp: 'log₂8 = 3，log₃9 = 2，所以 3 + 2 = 5。' },
+            { id: 2, subject: '數學', q: '擲兩顆公正骰子，點數和為 7 的機率是多少？', options: ['1/6', '1/7', '1/12', '1/36'], correctIndex: 0, exp: '組合有 (1,6)... 共 6 種。6/36 = 1/6。' },
+            { id: 4, subject: '英文', q: 'If I ___ you, I would not do that.', options: ['am', 'was', 'were', 'be'], correctIndex: 2, exp: '與現在事實相反的假設語氣，be 動詞一律使用 were。' },
+            { id: 7, subject: '國文', q: '「先天下之憂而憂，後天下之樂而樂」出自何人之手？', options: ['歐陽脩', '范仲淹', '蘇軾', '王安石'], correctIndex: 1, exp: '出自范仲淹的《岳陽樓記》。' },
+            { id: 10, subject: '物理', q: '公式 F = ma 是牛頓的第幾運動定律？', options: ['第一', '第二', '第三', '萬有引力'], correctIndex: 1, exp: '牛頓第二運動定律：物體所受合力等於質量乘上加速度。' }
+        ];
+
+        // 讀取 LocalStorage 中的題庫與錯題本
+        let questionBank = JSON.parse(localStorage.getItem('myQuestionBank')) || defaultQuestionBank;
+        let wrongDatabase = JSON.parse(localStorage.getItem('highSchoolWrongDb')) || [];
+        
+        let currentQuestion = null;
+        let pendingWrongAnsStr = '';
+        let currentCardIndex = 0;
+        let filteredReviewList = [];
+
+        // 2. 切換頁籤
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.section').forEach(sec => sec.classList.remove('active'));
+            event.target.classList.add('active');
+            document.getElementById(tabId).classList.add('active');
+
+            if (tabId === 'practice') loadRandomQuestion();
+            if (tabId === 'dashboard') renderDashboard();
+            if (tabId === 'review') initReview();
+        }
+
+        // 3. 刷題與判斷邏輯
+        function loadRandomQuestion() {
+            document.getElementById('total-q-count').textContent = questionBank.length;
+            const randomIndex = Math.floor(Math.random() * questionBank.length);
+            currentQuestion = questionBank[randomIndex];
+            
+            document.getElementById('q-subject').textContent = currentQuestion.subject;
+            document.getElementById('q-text').textContent = currentQuestion.q;
+            
+            const optionsContainer = document.getElementById('options-container');
+            optionsContainer.innerHTML = '';
+            
+            currentQuestion.options.forEach((opt, index) => {
+                const btn = document.createElement('button');
+                btn.className = 'btn';
+                btn.textContent = `${['A', 'B', 'C', 'D'][index]}. ${opt}`;
+                btn.onclick = () => checkAnswer(index, opt, btn);
+                optionsContainer.appendChild(btn);
+            });
+        }
+
+        function checkAnswer(selectedIndex, selectedText, btnElement) {
+            if (selectedIndex === currentQuestion.correctIndex) {
+                btnElement.style.backgroundColor = '#D1FAE5';
+                btnElement.style.borderColor = '#10B981';
+                setTimeout(() => {
+                    alert('答對了！繼續下一題！');
+                    loadRandomQuestion();
+                }, 300);
+            } else {
+                pendingWrongAnsStr = selectedText;
+                document.getElementById('modal-correct-ans').textContent = currentQuestion.options[currentQuestion.correctIndex];
+                document.getElementById('modal-explanation').textContent = currentQuestion.exp;
+                document.getElementById('reason-modal').style.display = 'flex';
+            }
+        }
+
+        function saveToWrongDb() {
+            const reason = document.getElementById('reason-select').value;
+            const qId = currentQuestion.id || Date.now(); // 確保有 ID
+            
+            const exists = wrongDatabase.some(item => item.q === currentQuestion.q);
+            if (!exists) {
+                wrongDatabase.push({
+                    id: Date.now(),
+                    subject: currentQuestion.subject,
+                    q: currentQuestion.q,
+                    myAns: pendingWrongAnsStr,
+                    correctAns: currentQuestion.options[currentQuestion.correctIndex],
+                    exp: currentQuestion.exp,
+                    reason: reason,
+                    timestamp: new Date().toLocaleString()
+                });
+                localStorage.setItem('highSchoolWrongDb', JSON.stringify(wrongDatabase));
+            }
+            document.getElementById('reason-modal').style.display = 'none';
+            loadRandomQuestion();
+        }
+
+        // 4. 新增功能：匯入 AI 產生的 JSON 題庫
+        function importAiQuestions() {
+            const input = document.getElementById('ai-json-input').value;
+            try {
+                // 將使用者輸入的文字解析成 JSON 陣列
+                const newQuestions = JSON.parse(input);
+                
+                if (!Array.isArray(newQuestions)) throw new Error('格式錯誤，必須是陣列格式 []');
+
+                let count = 0;
+                newQuestions.forEach(q => {
+                    // 加上唯一 ID 後推進現有題庫
+                    q.id = Date.now() + count;
+                    questionBank.push(q);
+                    count++;
+                });
+
+                // 將新的大題庫存進瀏覽器快取
+                localStorage.setItem('myQuestionBank', JSON.stringify(questionBank));
+                
+                alert(`成功匯入 ${count} 題！現在題庫共有 ${questionBank.length} 題。`);
+                document.getElementById('ai-json-input').value = ''; // 清空輸入框
+                
+            } catch (error) {
+                alert('匯入失敗！請確認你貼上的 JSON 格式完全正確，沒有多餘的文字。\n錯誤訊息: ' + error.message);
+            }
+        }
+
+        // 5. 錯題本總覽邏輯
+        function renderDashboard() {
+            const listContainer = document.getElementById('wrong-list');
+            const subjectFilter = document.getElementById('filter-subject');
+            
+            // 動態更新下拉選單的科目
+            const subjects = [...new Set(wrongDatabase.map(item => item.subject))];
+            subjectFilter.innerHTML = '<option value="all">所有科目</option>' + 
+                                      subjects.map(sub => `<option value="${sub}">${sub}</option>`).join('');
+
+            const selectedSubject = subjectFilter.value;
+            listContainer.innerHTML = '';
+            
+            let filteredList = wrongDatabase;
+            if (selectedSubject !== 'all' && selectedSubject !== '') {
+                filteredList = wrongDatabase.filter(item => item.subject === selectedSubject);
+            }
+
+            document.getElementById('wrong-count').textContent = filteredList.length;
+
+            if (filteredList.length === 0) {
+                listContainer.innerHTML = '<p style="text-align:center; color:#6B7280;">目前沒有錯題資料。</p>';
+                return;
+            }
+
+            filteredList.slice().reverse().forEach(item => {
+                listContainer.innerHTML += `
+                    <div class="wrong-item">
+                        <span class="badge subject">${item.subject}</span>
+                        <span class="badge reason">${item.reason}</span>
+                        <span style="color:#6B7280; font-size:0.8rem; float:right;">${item.timestamp}</span>
+                        <h3 style="margin-top: 0.5rem;">${item.q}</h3>
+                        <p style="color:var(--danger);">你的錯答：${item.myAns}</p>
+                        <p style="color:var(--success);">正確答案：${item.correctAns}</p>
+                        <p style="background-color:#F3F4F6; padding:0.5rem; border-radius:4px; font-size:0.9rem;">
+                            <strong>解析：</strong>${item.exp}
+                        </p>
+                        <button class="btn btn-danger" onclick="deleteWrongQ(${item.id})">已經學會了，移除此題</button>
+                    </div>
+                `;
+            });
+        }
+
+        function deleteWrongQ(id) {
+            if(confirm('確定要從錯題本移除嗎？')) {
+                wrongDatabase = wrongDatabase.filter(item => item.id !== id);
+                localStorage.setItem('highSchoolWrongDb', JSON.stringify(wrongDatabase));
+                renderDashboard();
+            }
+        }
+
+        // 6. 翻牌複習邏輯
+        function initReview() {
+            filteredReviewList = [...wrongDatabase];
+            currentCardIndex = 0;
+            const area = document.getElementById('flashcard-area');
+            const noCardMsg = document.getElementById('no-flashcard');
+            
+            if (filteredReviewList.length === 0) {
+                area.style.display = 'none';
+                noCardMsg.style.display = 'block';
+            } else {
+                area.style.display = 'block';
+                noCardMsg.style.display = 'none';
+                renderFlashcard();
+            }
+        }
+
+        function renderFlashcard() {
+            const cardElement = document.getElementById('flashcard');
+            cardElement.classList.remove('is-flipped');
+            const currentItem = filteredReviewList[currentCardIndex];
+            
+            document.getElementById('fc-subject').textContent = currentItem.subject;
+            document.getElementById('fc-question').textContent = currentItem.q;
+            document.getElementById('fc-answer').textContent = currentItem.correctAns;
+            document.getElementById('fc-reason').textContent = `前次錯誤原因：${currentItem.reason}`;
+            document.getElementById('fc-explanation').textContent = currentItem.exp;
+        }
+
+        function flipCard() { document.getElementById('flashcard').classList.toggle('is-flipped'); }
+        function nextCard() { currentCardIndex = (currentCardIndex + 1) % filteredReviewList.length; renderFlashcard(); }
+        function prevCard() { currentCardIndex = (currentCardIndex - 1 + filteredReviewList.length) % filteredReviewList.length; renderFlashcard(); }
+
+        window.onload = loadRandomQuestion;
+    </script>
+</body>
+</html>
