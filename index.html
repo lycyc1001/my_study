@@ -191,12 +191,24 @@
         <!-- 分頁 5：AI 擴充題庫 -->
         <section id="ai-import" class="section card">
             <h2>🚀 AI 協作擴充題庫</h2>
-            <p>將 AI 回覆的 JSON 程式碼貼到下方框框中：</p>
-            <textarea id="ai-json-input" rows="8" placeholder='[\n  {\n    "subject": "生物", ... \n  }\n]'></textarea>
-            <button class="btn btn-primary" onclick="importAiQuestions()">確認匯入題庫</button>
-        </section>
-    </main>
+            <p>請複製下方的「提示詞(Prompt)」，貼給 ChatGPT 或 Gemini，它會自動幫你出題。</p>
+            
+            <div style="background-color: #1F2937; color: #D1D5DB; padding: 1rem; border-radius: 8px; font-family: monospace; font-size: 0.9rem; margin-bottom: 1rem; white-space: pre-wrap; word-break: break-all;">請幫我出 3 題高中程度的【生物】選擇題（你可以改成任意科目）。
+請嚴格依照以下 JSON 陣列格式回覆，不要加任何其他文字或 Markdown 標記，也不要包含圖片欄位：
+[
+  {
+    "subject": "生物",
+    "q": "題目敘述...",
+    "options": ["選項A", "選項B", "選項C", "選項D"],
+    "correctIndex": 0,
+    "exp": "解析說明..."
+  }
+]</div>
 
+            <p>接著，將 AI 回覆的 JSON 程式碼貼到下方框框中：</p>
+            <textarea id="ai-json-input" rows="8" placeholder='[\n  {\n    "subject": "生物", ... \n  }\n]' style="width: 100%; padding: 0.75rem; border-radius: 8px; border: 1px solid #ccc; font-family: monospace; resize: vertical;"></textarea>
+            <button class="btn btn-primary" onclick="importAiQuestions()" style="margin-top: 1rem;">確認匯入題庫</button>
+        </section>
     <!-- 錯誤分析彈出視窗 -->
     <div id="reason-modal" class="modal-overlay">
         <div class="modal">
